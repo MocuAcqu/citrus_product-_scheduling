@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>產品訂購 排程工具</title>
+    <style>
+        :root {
+            --primary: #ecce49;
+            --primary-light: #fffdef;
+            --range-bg: #fef9db;
+            --pickup: #e79427;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border: #ebe8e5;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f3f4f6;
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 1000px;
+            width: 100%;
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                flex-direction: row;
+            }
+        }
+
+        .panel {
+            flex: 1;
+        }
+
+        .left-panel {
+            padding-right: 20px;
+            border-right: 1px solid var(--border);
+        }
+
+        .right-panel {
+            padding-left: 20px;
+            overflow-y: auto;
+            max-height: 80vh;
+        }
+
+        @media (max-width: 767px) {
+            .left-panel {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                padding-right: 0;
+                padding-bottom: 20px;
+            }
+            .right-panel {
+                padding-left: 0;
+            }
+        }
+
+        h1, h2 {
+            margin-top: 0;
+            color: var(--text-main);
+            font-size: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        input[type="date"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .result-box {
+            background: var(--primary-light);
+            border: 1px solid #feddbf;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .result-item {
+            margin-bottom: 10px;
+            font-size: 1.05rem;
+        }
+
+        .result-item strong {
+            display: inline-block;
+            width: 90px;
+        }
+
+        /* Calendar Styles */
+        .month-container {
+            margin-bottom: 25px;
+        }
+
+        .month-title {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+            text-align: center;
+        }
+
+        .weekday {
+            font-weight: bold;
+            color: var(--text-muted);
+            padding: 5px 0;
+            font-size: 0.9rem;
+        }
+
+        .day-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            position: relative;
+        }
+
+        .day-cell.empty {
+            background: transparent;
+        }
+
+        .day-cell.in-range {
+            background-color: var(--range-bg);
+            border-radius: 0;
+        }
+
+        .day-cell.start-date, .day-cell.end-date {
+            background-color: var(--primary);
+            color: white;
+            font-weight: bold;
+            border-radius: 4px;
+            z-index: 2;
+        }
+
+        .day-cell.pickup-date {
+            background-color: var(--pickup);
+            color: white;
+            font-weight: bold;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px var(--pickup);
+            z-index: 3;
+        }
+
+        .legend {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 左側控制面板 -->
+    <div class="panel left-panel">
+        <h1>橙工房產品製作計算</h1>
+        
+        <div class="form-group">
+            <label for="startDate">表單開始公佈日</label>
+            <input type="date" id="startDate">
+        </div>
+
+        <div class="form-group">
+            <label for="duration">表單公佈天數 (包含首尾日)</label>
+            <input type="number" id="duration" min="1" value="14">
+        </div>
+
+        <div class="form-group">
+            <label for="pickupDate">產品領貨日 (自動推算該週四，可手動修改)</label>
+            <input type="date" id="pickupDate">
+        </div>
+
+        <div class="result-box">
+            <div class="result-item"><strong>開始時間:</strong> <span id="resStart"></span> 00:00:00</div>
+            <div class="result-item"><strong>結束時間:</strong> <span id="resEnd"></span> 23:59:59</div>
+            <div class="result-item"><strong>領貨日期:</strong> <span id="resPickup"></span></div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><div class="legend-color" style="background: var(--primary)"></div> 申請首尾日</div>
+            <div class="legend-item"><div class="legend-color" style="background: var(--range-bg)"></div> 申請期間</div>
+            <div class="legend-item"><div class="legend-color" style="background: var(--pickup); border-radius: 50%"></div> 取貨日</div>
+        </div>
+    </div>
+
+    <div class="panel right-panel" id="calendarContainer">
+    </div>
+</div>
+
+<script>
+    const daysArr = ['日', '一', '二', '三', '四', '五', '六'];
+
+    const startDateInput = document.getElementById('startDate');
+    const durationInput = document.getElementById('duration');
+    const pickupDateInput = document.getElementById('pickupDate');
+    
+    const today = new Date();
+    startDateInput.value = formatDateForInput(today);
+
+    startDateInput.addEventListener('change', () => updateSchedule(true));
+    durationInput.addEventListener('input', () => updateSchedule(true));
+    pickupDateInput.addEventListener('change', () => updateSchedule(false)); // 只更新日曆，不重算取貨日
+
+    function formatDateForInput(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function formatDateForDisplay(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const day = daysArr[date.getDay()];
+        return `${y}/${m}/${d}(${day})`;
+    }
+
+    function updateSchedule(autoCalculatePickup = true) {
+        const startDate = new Date(startDateInput.value);
+        const duration = parseInt(durationInput.value);
+
+        if (isNaN(startDate.getTime()) || isNaN(duration)) return;
+
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + duration - 1);
+
+        let pickupDate;
+        
+        if (autoCalculatePickup) {
+            pickupDate = new Date(endDate);
+            const endDayOfWeek = pickupDate.getDay();
+            const diffToThursday = 4 - endDayOfWeek; 
+            pickupDate.setDate(pickupDate.getDate() + diffToThursday);
+            
+            if (pickupDate < endDate) {
+                pickupDate.setDate(pickupDate.getDate() + 7);
+            }
+            
+            pickupDateInput.value = formatDateForInput(pickupDate);
+        } else {
+            pickupDate = new Date(pickupDateInput.value);
+        }
+
+        document.getElementById('resStart').innerText = formatDateForDisplay(startDate);
+        document.getElementById('resEnd').innerText = formatDateForDisplay(endDate);
+        document.getElementById('resPickup').innerText = formatDateForDisplay(pickupDate);
+
+        renderCalendar(startDate, endDate, pickupDate);
+    }
+
+    function renderCalendar(start, end, pickup) {
+        const container = document.getElementById('calendarContainer');
+        container.innerHTML = '';
+
+        let currentMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+        let lastMonth = new Date(pickup.getFullYear(), pickup.getMonth(), 1);
+
+        if (lastMonth < currentMonth) {
+            lastMonth = new Date(currentMonth);
+        }
+
+        while (currentMonth <= lastMonth) {
+            const year = currentMonth.getFullYear();
+            const month = currentMonth.getMonth();
+            
+            const monthDiv = document.createElement('div');
+            monthDiv.className = 'month-container';
+            
+            const title = document.createElement('div');
+            title.className = 'month-title';
+            title.innerText = `${year}年 ${month + 1}月`;
+            monthDiv.appendChild(title);
+
+            const grid = document.createElement('div');
+            grid.className = 'calendar-grid';
+
+            daysArr.forEach(day => {
+                const dayHeader = document.createElement('div');
+                dayHeader.className = 'weekday';
+                dayHeader.innerText = day;
+                grid.appendChild(dayHeader);
+            });
+
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDayIndex; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'day-cell empty';
+                grid.appendChild(emptyCell);
+            }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const cellDate = new Date(year, month, d);
+                cellDate.setHours(0,0,0,0);
+                start.setHours(0,0,0,0);
+                end.setHours(0,0,0,0);
+                pickup.setHours(0,0,0,0);
+
+                const cell = document.createElement('div');
+                cell.className = 'day-cell';
+                cell.innerText = d;
+
+                const time = cellDate.getTime();
+                
+                if (time >= start.getTime() && time <= end.getTime()) {
+                    cell.classList.add('in-range');
+                }
+                if (time === start.getTime()) {
+                    cell.classList.add('start-date');
+                }
+                if (time === end.getTime()) {
+                    cell.classList.add('end-date');
+                }
+                if (time === pickup.getTime()) {
+                    cell.classList.add('pickup-date');
+                }
+
+                grid.appendChild(cell);
+            }
+
+            monthDiv.appendChild(grid);
+            container.appendChild(monthDiv);
+
+            currentMonth.setMonth(currentMonth.getMonth() + 1);
+        }
+    }
+
+    updateSchedule();
+
+</script>
+</body>
+</html>
